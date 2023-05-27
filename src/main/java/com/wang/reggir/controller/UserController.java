@@ -8,6 +8,7 @@ import com.wang.reggir.service.UserService;
 import com.wang.reggir.utils.ValidateCodeUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -16,6 +17,7 @@ import org.springframework.web.bind.annotation.ResponseBody;
 
 import javax.servlet.http.HttpSession;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 @Controller
 @Slf4j
@@ -23,16 +25,18 @@ import java.util.Map;
 public class UserController {
     @Autowired
     private UserService userService;
+    @Autowired
+    private RedisTemplate redisTemplate;
 
     @ResponseBody
     @PostMapping("/sendMsg")
-    public R<String> sendMsg(@RequestBody User user, HttpSession session) {
+    public R<String> sendMsg(@RequestBody User user) {
         if (StringUtils.isNotBlank(user.getPhone())) {
             String code = ValidateCodeUtils.generateValidateCode(4).toString();
             log.info("验证码为：{}", code);
             //这里应该将导入阿里云的依赖，然后用工具类输入标签、模板、手机号和随机验证码发送短信
             //这里模拟这个过程直接打印生成的验证码通过控制台获得
-            session.setAttribute(user.getPhone(), code);
+            redisTemplate.opsForValue().set(user.getPhone(),code,5, TimeUnit.MINUTES);
             return R.success("发送成功");
         }
         return R.error("发送失败");
@@ -43,10 +47,12 @@ public class UserController {
     public R<User> login(@RequestBody Map map, HttpSession session) {
         String phone = (String) map.get("phone");
         String code = (String) map.get("code");
-        String codeCompartion = (String) session.getAttribute(phone);
+        String codeCompartion = (String) redisTemplate.opsForValue().get(phone);
         if (codeCompartion == null || !codeCompartion.equals(code)) {
             return R.error("验证码输入错误");
         }
+        //登录成功，删除缓存中验证码数据
+        redisTemplate.delete(phone);
         //判断该用户是否在数据库中，若不在则再数据库中创建相关数据
         LambdaQueryWrapper<User> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(User::getPhone, phone);
