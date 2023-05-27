@@ -13,6 +13,7 @@ import com.wang.reggir.service.DishService;
 import com.wang.reggir.service.SetmealDishService;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -26,6 +27,8 @@ public class DishServiceImpl extends ServiceImpl<DishMapper, Dish> implements Di
     private DishFlavorService dishFlavorService;
     @Autowired
     private SetmealDishService setmealDishService;
+    @Autowired
+    private RedisTemplate redisTemplate;
 
     @Override
     @Transactional
@@ -34,6 +37,8 @@ public class DishServiceImpl extends ServiceImpl<DishMapper, Dish> implements Di
         List<DishFlavor> flavors = dishDto.getFlavors();
         flavors.forEach(i -> i.setDishId(dishDto.getId()));
         dishFlavorService.saveBatch(flavors);
+        String key ="dish_" + dishDto.getCategoryId();
+        redisTemplate.delete(key);
     }
 
     @Override
@@ -60,6 +65,8 @@ public class DishServiceImpl extends ServiceImpl<DishMapper, Dish> implements Di
         List<DishFlavor> flavors = dishDto.getFlavors();
         flavors.forEach(i -> i.setDishId(dishDto.getId()));
         dishFlavorService.saveBatch(flavors);
+        String key ="dish_" + dishDto.getCategoryId();
+        redisTemplate.delete(key);
     }
 
     @Transactional
@@ -93,9 +100,10 @@ public class DishServiceImpl extends ServiceImpl<DishMapper, Dish> implements Di
     public void updateStatus(int sta, Long[] ids) {
         if(ids != null){
             List<Dish> dishList = Arrays.stream(ids).map(id -> {
-                Dish dishupdate = new Dish();
+                Dish dishupdate = super.getById(id);
                 dishupdate.setStatus(sta);
-                dishupdate.setId(id);
+                String key ="dish_" + dishupdate.getCategoryId();
+                redisTemplate.delete(key);
                 return dishupdate;
             }).collect(Collectors.toList());
             super.updateBatchById(dishList);

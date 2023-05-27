@@ -14,10 +14,12 @@ import com.wang.reggir.service.DishService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 @Controller
@@ -30,6 +32,9 @@ public class DishController {
 
     @Autowired
     private CategoryService categoryService;
+
+    @Autowired
+    private RedisTemplate redisTemplate;
 
 
     @ResponseBody
@@ -114,7 +119,13 @@ public class DishController {
     @ResponseBody
     @GetMapping("/list")
     public R<List<DishDto>> getByCategoryId(Long categoryId) {
-        List<DishDto> dishList= dishService.listWithFlavor(categoryId);
+        String key = "dish_" + categoryId;
+        List<DishDto> dishList = (List<DishDto>) redisTemplate.opsForValue().get(key);
+        if (dishList != null) {
+            return R.success(dishList);
+        }
+        dishList = dishService.listWithFlavor(categoryId);
+        redisTemplate.opsForValue().set(key, dishList, 60, TimeUnit.MINUTES);
         return R.success(dishList);
     }
 
